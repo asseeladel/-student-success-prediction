@@ -1,0 +1,49 @@
+
+<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>التنبؤ بنجاح الطالب</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head><body>
+<header><div class="brand">🎓 التنبؤ بنجاح الطالب</div><nav>
+<a href="#home">الرئيسية</a><a href="#predict">التنبؤ</a><a href="#stats">الإحصائيات</a><a href="#records">السجلات</a><a href="#about">عن المشروع</a>
+</nav></header>
+<main>
+<section id="home" class="hero"><div><h1>نظام ذكي للتنبؤ بالنجاح الأكاديمي</h1>
+<p>يستخدم الحضور والدرجات والواجبات والمشاركة لتقدير نجاح الطالب.</p>
+<button onclick="go('predict')">ابدأ التنبؤ</button></div><div class="hero-card">🤖<br><b>KNN</b><br>تعلم آلي للتصنيف</div></section>
+
+<section id="predict"><h2>إدخال بيانات الطالب</h2><div class="grid">
+<form id="form" class="card">
+<label>اسم الطالب<input id="name" required placeholder="مثال: أحمد محمد"></label>
+<label>الحضور (%)<input id="attendance" type="number" min="0" max="100" required></label>
+<label>الدرجات (%)<input id="grades" type="number" min="0" max="100" required></label>
+<label>الواجبات (%)<input id="assignments" type="number" min="0" max="100" required></label>
+<label>المشاركة (%)<input id="participation" type="number" min="0" max="100" required></label>
+<div class="actions"><button type="submit">🔮 تنبؤ</button><button type="button" class="secondary" onclick="saveRecord()">حفظ الطالب</button></div>
+</form><div id="result" class="card result"><h3>نتيجة التنبؤ</h3><p>أدخل البيانات ثم اضغط «تنبؤ».</p></div></div></section>
+
+<section id="stats"><h2>الإحصائيات والرسوم البيانية</h2><div class="cards">
+<div class="stat"><b id="total">0</b><span>إجمالي الطلاب المحفوظين</span></div><div class="stat"><b id="passed">0</b><span>الناجحون</span></div>
+<div class="stat"><b id="failed">0</b><span>الراسبون</span></div><div class="stat"><b id="acc">0%</b><span>دقة النموذج</span></div></div>
+<div class="charts"><div class="card"><h3>النجاح والرسوب</h3><canvas id="pie"></canvas></div>
+<div class="card"><h3>متوسطات عناصر الطالب</h3><canvas id="bar"></canvas></div></div></section>
+
+<section id="records"><h2>سجلات الطلاب</h2><div class="card tablewrap"><table><thead><tr><th>الاسم</th><th>الحضور</th><th>الدرجات</th><th>الواجبات</th><th>المشاركة</th><th>النتيجة</th><th>الثقة</th></tr></thead><tbody id="tbody"></tbody></table></div></section>
+
+<section id="about" class="card about"><h2>عن المشروع</h2><p>مشروع تعليمي لتطبيق خوارزمية KNN في تصنيف الطلاب إلى ناجح أو راسب اعتمادًا على أربعة مؤشرات أكاديمية. البيانات الموجودة في المشروع بيانات تجريبية مولدة لغرض التدريب والعرض وليست بيانات طلاب حقيقية.</p></section>
+</main><footer>مشروع التنبؤ بنجاح الطالب الأكاديمي — Python + Flask + Scikit-learn</footer>
+<script>
+let last=null, pieChart, barChart;
+const $=id=>document.getElementById(id);
+function go(id){location.hash=id;document.getElementById(id).scrollIntoView({behavior:"smooth"})}
+function payload(){return {name:$("name").value,attendance:$("attendance").value,grades:$("grades").value,assignments:$("assignments").value,participation:$("participation").value}}
+$("form").addEventListener("submit",async e=>{e.preventDefault();let d=payload();let r=await fetch("/predict",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});let x=await r.json();if(x.success){last=d;$("result").innerHTML=`<h3>نتيجة التنبؤ</h3><div class="${x.prediction==='ناجح'?'ok':'bad'}">${x.prediction}</div><p>احتمالية النتيجة: <b>${x.probability}%</b></p>`}else alert(x.message)});
+async function saveRecord(){if(!last){alert("نفّذ التنبؤ أولًا.");return}let r=await fetch("/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(last)});if((await r.json()).success){alert("تم حفظ الطالب بنجاح");loadStats();loadStudents()}}
+async function loadStats(){let s=await (await fetch("/stats")).json();$("total").textContent=s.saved.total;$("passed").textContent=s.saved.passed;$("failed").textContent=s.saved.failed;$("acc").textContent=s.accuracy+"%";
+if(pieChart)pieChart.destroy();pieChart=new Chart($("pie"),{type:"doughnut",data:{labels:["ناجح","راسب"],datasets:[{data:[s.dataset.passed,s.dataset.failed]}]},options:{responsive:true}});
+if(barChart)barChart.destroy();barChart=new Chart($("bar"),{type:"bar",data:{labels:["الحضور","الدرجات","الواجبات","المشاركة"],datasets:[{label:"المتوسط %",data:[s.averages.attendance,s.averages.grades,s.averages.assignments,s.averages.participation]}]},options:{responsive:true,scales:{y:{beginAtZero:true,max:100}}}});
+}
+async function loadStudents(){let a=await (await fetch("/students")).json();$("tbody").innerHTML=a.map(x=>`<tr><td>${x.name}</td><td>${x.attendance}</td><td>${x.grades}</td><td>${x.assignments}</td><td>${x.participation}</td><td>${x.prediction?"ناجح":"راسب"}</td><td>${Number(x.probability).toFixed(1)}%</td></tr>`).join("")||"<tr><td colspan='7'>لا توجد سجلات محفوظة.</td></tr>"}
+loadStats();loadStudents();
+</script></body></html>
